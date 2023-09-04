@@ -1,0 +1,74 @@
+In a previous role, I was tasked with securely archiving critical business data for long-term retention. I implemented an AWS S3 storage solution to store this data cost-effectively and securely. To enhance data security, I configured versioning and cross-region replication, ensuring data durability and disaster recovery capabilities. Additionally, I utilized S3 lifecycle policies to automate the transition of older data to lower-cost storage classes like S3 Glacier and S3 Glacier Deep Archive. This not only saved costs but also ensured compliance with data retention policies.
+
+your end goal in this scenario is to create a secure, cost-effective, and compliant data archiving solution using AWS S3 that ensures long-term data retention and disaster recovery capabilities.
+
+COMMON AWS CLI COMMANDS FOR S3.
+
+- To enable versioning on your bucket. Replace Enabled with Suspended ---> suspended Will disable the versioning or stop versioning.--->
+
+$ aws s3api put-bucket-versioning --bucket <BUCKET-NAME> --versioning-configuration Status=Enabled
+
+- To see the different versions in a bucket---->
+$ aws s3api list-object-versions --bucket <BUCKET-NAME>
+
+1. Create an IAM Role. call it "REPLICATIONROLE"
+
+aws iam create-role --role-name ReplicationRole --assume-role-policy-document '{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "Service": "s3.amazonaws.com"
+      },
+      "Action": "sts:AssumeRole"
+    }
+  ]
+}'
+
+
+2. Now Create a Permission policy and attach to the role above.Called it "REPLICATIONPOLICY"
+
+aws iam put-role-policy --role-name ReplicationRole --policy-name ReplicationPolicy --policy-document '{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObjectVersionForReplication",
+        "s3:GetBucketVersioning",
+        "s3:GetReplicationConfiguration",
+        "s3:ListBucket"
+      ],
+      "Resource": [
+        "arn:aws:s3:::<SOURCE-BUCKET-NAME>/*",
+        "arn:aws:s3:::<DESTINATION-BUCKET-NAME>/*"
+      ]
+    },
+    {
+      "Effect": "Allow",
+      "Action": "s3:ReplicateObject",
+      "Resource": [
+        "arn:aws:s3:::<DESTINATION-BUCKET-NAME>/*"
+      ]
+    }
+  ]
+}'
+
+
+
+3. Configure the cross region replication.
+
+aws s3api put-bucket-replication --bucket my-tf-pipelinebucket2023 --replication-configuration'{
+    "Role": "arn:aws:iam::034086922645:role/ReplicationRole",
+    "Rules": [
+        {
+            "Status": "Enabled",
+            "Destination": {
+                "Bucket": "arn:aws:s3:::<DESTINATION-BUCKET-NAME>",
+                "StorageClass": "STANDARD"
+            }
+        }
+    ]
+}'
+
